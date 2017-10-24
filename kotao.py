@@ -5,6 +5,8 @@ import dht
 import socket
 import network
 
+pauza = 300
+skalirana_vrednost = 15
 
 def http_get(url):
     _, _, host, path = url.split('/', 3)
@@ -13,7 +15,7 @@ def http_get(url):
     s.connect(addr)
     s.send(bytes('GET /%s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host), 'utf8'))
     while True:
-        data = s.recv(300)
+        data = s.recv(1000)
         if data:
             print('\nPrimljeno = ',len(data))
             print(url)
@@ -27,15 +29,17 @@ def http_get(url):
 def proveriwifi():
     ponavljanja=0
     while (  sta_if.isconnected() is  False ):
-        time.sleep(5)
+        time.sleep(2)
         sta_if.connect('I9EBE','dTG7kKkAUJd4')
         if (sta_if.isconnected()):
             print('I9EBE - Povezan')
             break
+        time.sleep(2)
         sta_if.connect('Dimic','aleksandarivan')
         if (sta_if.isconnected()):
             print('Dimic - Povezan')
             break
+        time.sleep(2)
         sta_if.connect('CETASmarac','ceta12345')
         if (sta_if.isconnected()):
             print('CETASmarac - Povezan')
@@ -83,7 +87,7 @@ print ('Stanica = ', sta_if.active() )
 proveriwifi()
 
 while (True):
-    time.sleep(60)
+    #time.sleep(pauza)
 # Pocetak akvizicije - 15364b6f7e934f859ab8cc3803d2971b
     print('\nStart.')
     d.measure()
@@ -93,6 +97,7 @@ while (True):
     print ('     Vlaznost',vlaznost)
     print ('Kraj Merenja\n')
     try:
+#BLINK
     # Vlaznost
         vlaznost_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V1?value='+str(vlaznost)
         http_get(vlaznost_link)
@@ -108,9 +113,23 @@ while (True):
             pin.on()
         else:
             pin.off()
+    # Grejanje skalirani prikaz
+        skalar = int(web_prekidac[-3])*skalirana_vrednost
+        skaliran_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V3?value='+str(skalar)
+        http_get(skaliran_link)
+#ThingSpeak
+        #http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1='+str(vlaznost) )
+        http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field2='+str(temperatura) )
+        #Shttp_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field3='+str(web_prekidac[-3]) )
 
 
 
    # Hendlovati status tastera
     except:
+        machine.reset()
         proveriwifi()
+    print ('\nCekam ',pauza,'sekundi\n')
+    time.sleep(pauza)
+
+    # DODATI DECIMALNU VREDNOST ZA DHT11
+    #https://forum.micropython.org/viewtopic.php?t=1392

@@ -36,6 +36,7 @@ Gasenje izlaza:
 Kopiranje fajlova:
   ampy --port /serial/port put test.py
   ampy --port /serial/port get boot.py
+  ampy --port /serial/port put test.py /main.py
   https://learn.adafruit.com/micropython-basics-load-files-and-run-code/file-operations
 
 Pokretanje programa:
