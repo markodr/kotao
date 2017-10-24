@@ -13,26 +13,44 @@ def http_get(url):
     s.connect(addr)
     s.send(bytes('GET /%s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host), 'utf8'))
     while True:
-        data = s.recv(100)
+        data = s.recv(300)
         if data:
+            print('\nPrimljeno = ',len(data))
+            print(url)
             print(str(data, 'utf8'), end='')
+            # Zasto ovde radi return ?
+            return data.decode('utf-8')
         else:
             break
     s.close()
 
 def proveriwifi():
+    ponavljanja=0
     while (  sta_if.isconnected() is  False ):
-        neuspelo=0
-        time.sleep(3)
-        try:
-            sta_if.connect('I9EBE','dTG7kKkAUJd4')
-            print( '\nPovezan na I9EBE = ', sta_if.ifconfig() )
-        except:
-            sta_if.connect('Dimic','aleksandarivan')
-            print( '\nPovezan na Dimic = ', sta_if.ifconfig() )
-        neuspelo=neuspelo+1
-        print(neuspelo)
-    print ('\nPovezan na neku mrezu = ',sta_if.ifconfig())
+        time.sleep(5)
+        sta_if.connect('I9EBE','dTG7kKkAUJd4')
+        if (sta_if.isconnected()):
+            print('I9EBE - Povezan')
+            break
+        sta_if.connect('Dimic','aleksandarivan')
+        if (sta_if.isconnected()):
+            print('Dimic - Povezan')
+            break
+        sta_if.connect('CETASmarac','ceta12345')
+        if (sta_if.isconnected()):
+            print('CETASmarac - Povezan')
+            break
+
+        ponavljanja=ponavljanja+1
+        print(ponavljanja,'ponavaljanja  povezivanja na WiFi')
+
+        if (ponavljanja==10):
+            print(' RESETOVATI ESP8266 ')
+            machine.reset()
+            break
+    print ('\nUspesno povezan na neku mrezu = ',sta_if.ifconfig())
+
+
 
 # Da bih video pocetak programa
 time.sleep(5)
@@ -43,13 +61,13 @@ pin = machine.Pin(0, machine.Pin.OUT)
 d = dht.DHT11(machine.Pin(4))
 adc = machine.ADC(0)
 
-# Potrebne promenljive
-grejanje_dugme=0
-
 # Zabrana AP
 ap_if = network.WLAN(network.AP_IF)
 ap_if.active(False)
 print ('\nAccess Point = ' , ap_if.active())
+
+# Prilikom reseta ugasi grejanje_dugme
+pin.off()
 
 # Dozvola stanice
 sta_if = network.WLAN(network.STA_IF)
@@ -64,32 +82,35 @@ print ('Stanica = ', sta_if.active() )
 
 proveriwifi()
 
-
-
-
-
-
 while (True):
-    time.sleep(10)
+    time.sleep(60)
 # Pocetak akvizicije - 15364b6f7e934f859ab8cc3803d2971b
-    pin.off()
-    print('\nStart Merenja\n')
-    merenje= d.measure()
+    print('\nStart.')
+    d.measure()
     temperatura=d.temperature()
     vlaznost=d.humidity()
-    print ('Merenje',merenje)
-    print ('Temperatura', temperatura)
-    print ('Vlaznost',vlaznost)
-    print('\nKraj Merenja\n')
+    print ('     Temperatura', temperatura)
+    print ('     Vlaznost',vlaznost)
+    print ('Kraj Merenja\n')
+    try:
+    # Vlaznost
+        vlaznost_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V1?value='+str(vlaznost)
+        http_get(vlaznost_link)
+    # Temperatura
+        temperatura_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V0?value='+str(temperatura)
+        http_get(temperatura_link)
+    # Grejanje Taster
+        grejanje_link= 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V2'
+        web_prekidac = http_get(grejanje_link)
+        #print('\n\nRESPONSE web_prekidac je', type(web_prekidac), 'duzine ', len(web_prekidac))
+        print('\n\nBlyink prekidac je : ',web_prekidac[-3])
+        if (int(web_prekidac[-3])==1):
+            pin.on()
+        else:
+            pin.off()
 
-# Vlaznost
-    vlaznost_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V1?value='+str(vlaznost)
-    http_get(vlaznost_link)
-# Temperatura
-    temperatura_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V0?value='+str(temperatura)
-    http_get(temperatura_link)
-'''
-# Grejanje Taster
-#    grejanje_link= 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V2'
-#    http_get(grejanje_link)
-'''
+
+
+   # Hendlovati status tastera
+    except:
+        proveriwifi()
