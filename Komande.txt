@@ -1,0 +1,57 @@
+
+Skripta printa nakon izvrsenog koda, -no-output oslobadja com port
+Uputstva:
+  https://learn.adafruit.com/micropython-basics-loading-modules/import-code
+  https://learn.adafruit.com/micropython-basics-blink-a-led/blink-led
+
+
+COM PORT pristup:
+  ls /dev/tty.*
+  screen /dev/tty.usbserial-A602EB8N 115200
+
+Flesovanje ESP8266:
+  esptool.py --port /dev/tty.usbserial-A602EB8N erase_flash
+  esptool.py --port /dev/tty.usbserial-A602EB8N --baud 460800 write_flash --flash_size=detect 0 esp8266-20170823-v1.9.2.bin
+
+
+
+
+ESP Board
+/dev/tty.usbserial-A602EB8N
+
+
+AMPY KOMANDE:
+
+Debagovanje:
+  import esp
+  esp.osdebug(None)
+
+Pokretanje skripti:
+  ampy --port /dev/tty.usbserial-A602EB8N run kotao.py
+
+
+Gasenje izlaza:
+  ampy --port /dev/tty.usbserial-A602EB8N run --no-output kotao.py
+
+Kopiranje fajlova:
+  ampy --port /serial/port put test.py
+  ampy --port /serial/port get boot.py
+  https://learn.adafruit.com/micropython-basics-load-files-and-run-code/file-operations
+
+Pokretanje programa:
+ampy --port /dev/tty.usbserial-A602EB8N put kotao.py /main.py
+
+
+
+
+
+
+towel.blinkenlights.nl
+
+
+from urllib2 import Request, urlopen
+
+request = Request('http://blynk-cloud.com/auth_token/update/pin?value=value')
+
+response_body = urlopen(request).read()
+print response_body
