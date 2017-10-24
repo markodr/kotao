@@ -20,6 +20,22 @@ def http_get(url):
             break
     s.close()
 
+def proveriwifi():
+    while (  sta_if.isconnected() is  False ):
+        neuspelo=0
+        time.sleep(3)
+        try:
+            sta_if.connect('I9EBE','dTG7kKkAUJd4')
+            print( '\nPovezan na I9EBE = ', sta_if.ifconfig() )
+        except:
+            sta_if.connect('Dimic','aleksandarivan')
+            print( '\nPovezan na Dimic = ', sta_if.ifconfig() )
+        neuspelo=neuspelo+1
+        print(neuspelo)
+    print ('\nPovezan na neku mrezu = ',sta_if.ifconfig())
+
+# Da bih video pocetak programa
+time.sleep(5)
 
 # Definisanje modula
 esp.osdebug(None)
@@ -41,10 +57,17 @@ sta_if.active(True)
 print ('Stanica = ', sta_if.active() )
 
 # Povezivanje na ruter
-print ('Povezani smo = ', sta_if.isconnected() )
-if (  sta_if.isconnected() is not True ):
-    sta_if.connect('I9EBE','dTG7kKkAUJd4')
-print( '\nI9EBE', sta_if.ifconfig() )
+    # print ('Povezani smo = ', sta_if.isconnected() )
+    # if (  sta_if.isconnected() is not True ):
+    #     sta_if.connect('I9EBE','dTG7kKkAUJd4')
+    # print( '\nI9EBE', sta_if.ifconfig() )
+
+proveriwifi()
+
+
+
+
+
 
 while (True):
     time.sleep(10)
