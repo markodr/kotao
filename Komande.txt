@@ -11,7 +11,7 @@ COM PORT pristup:
 
 Flesovanje ESP8266:
   esptool.py --port /dev/tty.usbserial-A602EB8N erase_flash
-  esptool.py --port /dev/tty.usbserial-A602EB8N --baud 460800 write_flash --flash_size=detect 0 esp8266-20170823-v1.9.2.bin
+  esptool.py --port /dev/tty.usbserial-A602EB8N --baud 460800 write_flash --flash_size=detect 0 esp8266-20171024-v1.9.2-193-gf4059dcc.bin
 
 
 
