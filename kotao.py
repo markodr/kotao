@@ -1,15 +1,16 @@
 import esp
 import time
-import machine
 import dht
 import socket
 import network
 import ure
+import onewire, ds18x20
 
 '''
 Izmerene vrednosti sa senzora
     V0 - Temperatura
     V1 - Vlaznost
+    V4 - Temperatura vode u kotlu
 Prekici za paljenje/gasenje senzora
     V2 - Prekidac PALI Grejanje
     V3 - Prekidac BLOKIRAJ Grejanje
@@ -23,7 +24,7 @@ Skalirane vrednosti za prikaz
     V13 - Prikaz prekidaca PALI Grejanje
 '''
 
-pauza = 30
+pauza = 60
 skalar = 15
 
 def http_get(url):
@@ -86,19 +87,22 @@ def do_connect():
 
 # Definisanje modula
 esp.osdebug(None)
-taster_pali = machine.Pin(0, machine.Pin.OUT)
-taster_odblokiraj = machine.Pin(12, machine.Pin.OUT)
+#taster_pali = machine.Pin(2, machine.Pin.OUT)
+#taster_odblokiraj = machine.Pin(15, machine.Pin.OUT)
 d = dht.DHT11(machine.Pin(4))
 adc = machine.ADC(0)
+
+# DS18x20 inicijalizacija
+dat = machine.Pin(13)
+ds = ds18x20.DS18X20(onewire.OneWire(dat))
+roms = ds.scan()
 
 # Zabrana AP
 ap_if = network.WLAN(network.AP_IF)
 ap_if.active(False)
 print ('\nAccess Point = ' , ap_if.active())
 
-# Prilikom reseta ugasi grejanje_dugme
-taster_pali.off()
-taster_odblokiraj.on()
+
 
 # Dozvola stanice
 sta_if = network.WLAN(network.STA_IF)
@@ -127,37 +131,41 @@ while (True):
     try:
 
 #BLINK
-    # Vlaznost
+    # Vlaznost prostorije
         vlaznost_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V1?value='+str(vlaznost)
         http_get(vlaznost_link)
-    # Temperatura
+    # Temperatura prostorije
         temperatura_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V0?value='+str(temperatura)
         http_get(temperatura_link)
+    # Temperatura vode u kotlu
+        ds.convert_temp()
+        time.sleep(1)
+        for rom in roms:
+            kotao_temperatura= ds.read_temp(rom)
+            print( '\nTemperatura vode : ', kotao_temperatura)
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V4?value='+str(int(kotao_temperatura)))
     # Grejanje Taster PALI
         grejanje_link_pali= 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V2'
         web_prekidac_pali = http_get(grejanje_link_pali)
-        prekidac_pali = ure.search('\[.\d.\]', web_prekidac_pali).group(0)[2]
+        prekidac_pali = ure.search('\[.\d.+\]', web_prekidac_pali).group(0)[2]
         print( '\nUpali Grejanje je    : ', prekidac_pali)
-
-        if (int(prekidac_pali)==1): # Ovo je malo nezgodno napisano...
+        # Prikazi na grafiku stanje tastera pali
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V13?value='+str(prekidac_pali))
+        if (int(prekidac_pali)>0):
             taster_pali.on()
-            http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V13?value='+str(prekidac_pali))
         else:
             taster_pali.off()
-            http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V13?value='+str(prekidac_pali))
-
     # Grejanje Taster BLOKIRAJ
         grejanje_link_gasi = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V3'
         web_prekidac_gasi = http_get(grejanje_link_gasi)
-        prekidac_gasi = ure.search('\[.\d.\]', web_prekidac_gasi).group(0)[2]
+        prekidac_gasi = ure.search('\[.\d.+\]', web_prekidac_gasi).group(0)[2]
         print( '\nBlokiraj Grejanje je : ', prekidac_gasi)
 # Ako je blokiran kotao mora biti i ugasen !!! Obavezno ugasiti i prikazati na grafiku
-        if (int(prekidac_gasi)==1): # OVo je malo nezgodno napisano...
-            taster_odblokiraj.off()
-            http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V12?value='+str(prekidac_gasi))
-        else:
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V12?value='+str(prekidac_gasi))
+        if (int(prekidac_gasi)>0): # OVo je malo nezgodno napisano...
             taster_odblokiraj.on()
-            http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V12?value='+str(prekidac_gasi))
+        else:
+            taster_odblokiraj.off()
 
 
     # Preuzmi RTC format podataka http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc
@@ -173,11 +181,8 @@ while (True):
 #ThingSpeak WebHook
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V9?value=69')
 
-        # DODATI DS18S20
         # DEKODOVATI RTC
-        # SREDITI REGRESION DA MOZE DVOCIFREN BROJ
         # PODESITI ONLINE STATUS
-        # PROVERITI ZASTO SE PRIKAZUJU V12,V3 A NE V2,V3
         # AKO BLOKIRAM KOTAO TREBA DA SE DISEJBLUJE DUGME ZA PALJENJE
         # DODATI NOTIFIKACIJE
 
