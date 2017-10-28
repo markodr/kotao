@@ -24,8 +24,14 @@ Skalirane vrednosti za prikaz
     V13 - Prikaz prekidaca PALI Grejanje
 '''
 
+# Dodati jedan NEZAVISTAN izlaz za relej
+# Dodati jedan buzzer prilikom zbog reseta, staviti ga na pwm pin
+# DEKODOVATI RTC
+# PODESITI ONLINE STATUS
+# Dodati broj reseta u fajlu mozda i ne mora
+
+reset=0 # Da znam koliko se puta resetovao uredjaj
 pauza = 60
-skalar = 15
 
 def http_get(url):
     _, _, host, path = url.split('/', 3)
@@ -101,9 +107,6 @@ roms = ds.scan()
 ap_if = network.WLAN(network.AP_IF)
 ap_if.active(False)
 print ('\nAccess Point = ' , ap_if.active())
-
-
-
 # Dozvola stanice
 sta_if = network.WLAN(network.STA_IF)
 sta_if.active(True)
@@ -112,95 +115,70 @@ print ('Stanica = ', sta_if.active() )
 print('\nDostupne mreze\n')
 print(sta_if.scan())
 
-
-
 #proveriwifi()
 do_connect()
 
 
 while (True):
-    #time.sleep(pauza)
-# Pocetak akvizicije - 15364b6f7e934f859ab8cc3803d2971b
-    print('\nStart.')
+    # Merenje Senzora - 15364b6f7e934f859ab8cc3803d2971b
+    print('\nPocetak Merenja')
     d.measure()
     temperatura=d.temperature()
     vlaznost=d.humidity()
     print ('     Temperatura', temperatura)
-    print ('     Vlaznost',vlaznost)
+    print ('     Vlaznost   ',vlaznost)
+    ds.convert_temp()
+    time.sleep(1)
+    for rom in roms:
+        kotao_temperatura= ds.read_temp(rom)
+        print( '   Temp. vode   ', kotao_temperatura)
     print ('Kraj Merenja\n')
+
     try:
 
-#BLINK
-    # Vlaznost prostorije
-        vlaznost_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V1?value='+str(vlaznost)
-        http_get(vlaznost_link)
-    # Temperatura prostorije
-        temperatura_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V0?value='+str(temperatura)
-        http_get(temperatura_link)
-    # Temperatura vode u kotlu
-        ds.convert_temp()
-        time.sleep(1)
-        for rom in roms:
-            kotao_temperatura= ds.read_temp(rom)
-            print( '\nTemperatura vode : ', kotao_temperatura)
+# BLINK
+    # Vlaznost prostorije - Update v1
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V1?value='+str(vlaznost))
+    # Temperatura prostorije - Update v0
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V0?value='+str(temperatura))
+    # Temperatura vode u kotlu - v4
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V4?value='+str(int(kotao_temperatura)))
-    # Grejanje Taster PALI
-        grejanje_link_pali= 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V2'
-        web_prekidac_pali = http_get(grejanje_link_pali)
+    # Grejanje Taster PALI - Dowload/Update v2,v13
+        web_prekidac_pali = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V2')
         prekidac_pali = ure.search('\[.\d.+\]', web_prekidac_pali).group(0)[2]
         print( '\nUpali Grejanje je    : ', prekidac_pali)
-        # Prikazi na grafiku stanje tastera pali
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V13?value='+str(prekidac_pali))
         if (int(prekidac_pali)>0):
             taster_pali.on()
         else:
             taster_pali.off()
-    # Grejanje Taster BLOKIRAJ
-        grejanje_link_gasi = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V3'
-        web_prekidac_gasi = http_get(grejanje_link_gasi)
-        prekidac_gasi = ure.search('\[.\d.+\]', web_prekidac_gasi).group(0)[2]
+    # Grejanje Taster BLOKIRAJ Dowload/Update v3,v12
+        web_prekidac_block = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V3')
+        prekidac_gasi = ure.search('\[.\d.+\]', web_prekidac_block).group(0)[2]
         print( '\nBlokiraj Grejanje je : ', prekidac_gasi)
-# Ako je blokiran kotao mora biti i ugasen !!! Obavezno ugasiti i prikazati na grafiku
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V12?value='+str(prekidac_gasi))
         if (int(prekidac_gasi)>0): # OVo je malo nezgodno napisano...
             taster_odblokiraj.on()
         else:
             taster_odblokiraj.off()
-
-
-    # Preuzmi RTC format podataka http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc
-        rtc_link = 'http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc'
-        rtc_format = http_get(rtc_link)
+    # Preuzmi RTC format podataka Update v10,v11 http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc
+        rtc_format = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc')
         RTC_raw = ure.search('\[(\d+)]', rtc_format).group(1)
         print ('\nRTC je      : ', RTC_raw )
-
-    # Ispisi Vreme - Datum poslednje konekcije 1-red v10 2-red v11
+        # Ispisi Vreme - Datum poslednje konekcije 1-red v10 2-red v11
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V10?value=TimeAndDate')
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V11?value='+str(RTC_raw))
-
-#ThingSpeak WebHook
-        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V9?value=69')
-
-        # DEKODOVATI RTC
-        # PODESITI ONLINE STATUS
-        # AKO BLOKIRAM KOTAO TREBA DA SE DISEJBLUJE DUGME ZA PALJENJE
-        # DODATI NOTIFIKACIJE
-
-
-
-    # #ThingSpeak iskoristi webhook ne ovako iz nekog razloga puca
-    #     #http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1='+str(vlaznost) )
-    #     http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field2='+str(temperatura) )
-        #Shttp_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field3='+str(web_prekidac[-3]) )
-
-        #print('\nRESPONSE\n')
-        #print('Temp: {0:.2f}, Humi: {1:.2f}'.format(d.temperature(),d.humidity()))
-
-   # Hendlovati status tastera
+# ThingSpeak
+        http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1=' + str(temperatura) + '&field2=' + str(kotao_temperatura) )
+# Ako je UPDATE prosao pocni da brojis ponovo neuspela povezivanja.
+        reset=0
     except:
-        machine.reset()
+        #
+        reset = reset + 1
+        print ('\nP------------------------')
+        print ('\nPUKAO SAM : ',reset,'puta\n')
+        print ('\nP------------------------')
+        if (reset >=3):
+            machine.reset()
     print ('\nCekam ',pauza,'sekundi\n')
     time.sleep(pauza)
-
-    # DODATI DECIMALNU VREDNOST ZA DHT11
-    #https://forum.micropython.org/viewtopic.php?t=1392
