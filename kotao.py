@@ -5,6 +5,10 @@ import socket
 import network
 import ure
 import onewire, ds18x20
+from machine import WDT
+import utime
+import network
+
 
 '''
 Izmerene vrednosti sa senzora
@@ -29,9 +33,14 @@ Skalirane vrednosti za prikaz
 # DEKODOVATI RTC
 # PODESITI ONLINE STATUS
 # Dodati broj reseta u fajlu mozda i ne mora
+# Dodati reset u poetlji do_connect.
+# Dodati statuse za update puca negde program
 
-reset=0 # Da znam koliko se puta resetovao uredjaj
 pauza = 60
+
+#wdt = machine.WDT(5000)
+#wdt.feed()
+
 
 def http_get(url):
     _, _, host, path = url.split('/', 3)
@@ -51,36 +60,9 @@ def http_get(url):
             break
     s.close()
 
-def proveriwifi():
-    ponavljanja=0
-    while (  sta_if.isconnected() is  False ):
-        time.sleep(2)
-        sta_if.connect('I9EBE','dTG7kKkAUJd4')
-        if (sta_if.isconnected()):
-            print('I9EBE - Povezan')
-            break
-        time.sleep(2)
-        sta_if.connect('Dimic','aleksandarivan')
-        if (sta_if.isconnected()):
-            print('Dimic - Povezan')
-            break
-        time.sleep(2)
-        sta_if.connect('CETASmarac','ceta12345')
-        if (sta_if.isconnected()):
-            print('CETASmarac - Povezan')
-            break
-
-        ponavljanja=ponavljanja+1
-        print(ponavljanja,'ponavaljanja  povezivanja na WiFi')
-
-        if (ponavljanja==6):
-            print(' RESETOVATI ESP8266 ')
-            machine.reset()
-            break
-    print ('\nUspesno povezan na neku mrezu = ',sta_if.ifconfig())
+# Ovde treba postaviti reset posle odredjenog broja puta
 
 def do_connect():
-    import network
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
         print('connecting to network...')
@@ -135,14 +117,16 @@ while (True):
     print ('Kraj Merenja\n')
 
     try:
-
 # BLINK
     # Vlaznost prostorije - Update v1
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V1?value='+str(vlaznost))
+        print('\nVlaznost : OK')
     # Temperatura prostorije - Update v0
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V0?value='+str(temperatura))
+        print('\nTemperatura : OK')
     # Temperatura vode u kotlu - v4
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V4?value='+str(int(kotao_temperatura)))
+        print('\nKotao : OK')
     # Grejanje Taster PALI - Dowload/Update v2,v13
         web_prekidac_pali = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V2')
         prekidac_pali = ure.search('\[.\d.+\]', web_prekidac_pali).group(0)[2]
@@ -152,6 +136,7 @@ while (True):
             taster_pali.on()
         else:
             taster_pali.off()
+        print('\nPrekidaci : OK')
     # Grejanje Taster BLOKIRAJ Dowload/Update v3,v12
         web_prekidac_block = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V3')
         prekidac_gasi = ure.search('\[.\d.+\]', web_prekidac_block).group(0)[2]
@@ -161,24 +146,29 @@ while (True):
             taster_odblokiraj.on()
         else:
             taster_odblokiraj.off()
-    # Preuzmi RTC format podataka Update v10,v11 http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc
+        print('\nBlokiraj : OK')
+    # Preuzmi RTC format podataka Update v10,v11 utime.localtime http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc
         rtc_format = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc')
         RTC_raw = ure.search('\[(\d+)]', rtc_format).group(1)
-        print ('\nRTC je      : ', RTC_raw )
-        # Ispisi Vreme - Datum poslednje konekcije 1-red v10 2-red v11
-        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V10?value=TimeAndDate')
-        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V11?value='+str(RTC_raw))
-# ThingSpeak
-        http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1=' + str(temperatura) + '&field2=' + str(kotao_temperatura) )
-# Ako je UPDATE prosao pocni da brojis ponovo neuspela povezivanja.
-        reset=0
+        formatirano_vreme = utime.localtime(int(RTC_raw))
+        print ('\nRTC je      : ', RTC_raw, '=',formatirano_vreme)
+    # Ispisi Vreme - Datum poslednje konekcije 1-red v10 2-red v11
+        datum = '___' + str( formatirano_vreme[1]) + '.' + str(formatirano_vreme[2]) + '.' + str(formatirano_vreme[0]-30)
+        #print(type(datum), datum)
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V10?value=' + datum )
+        vreme = '____' +  str(formatirano_vreme[3]) + ':' + str(formatirano_vreme[4]) + ':' + str(formatirano_vreme[5])
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V11?value=' + vreme )
+        print('\nRTC : OK')
+# ThingSpeak https://community.blynk.cc/t/help-with-webhook-and-thingspeak/8242/3
+        http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1=' + str(temperatura) + '&field2=' + str(kotao_temperatura)  + '&field3=' + str(kotao_temperatura) + '&field4=' + str(vlaznost))
+        print('\nThingSpeak : OK')
+        # Ako je UPDATE prosao pocni da brojis ponovo neuspela povezivanja.
+        #wdt.feed()
     except:
-        #
-        reset = reset + 1
-        print ('\nP------------------------')
-        print ('\nPUKAO SAM : ',reset,'puta\n')
-        print ('\nP------------------------')
-        if (reset >=3):
-            machine.reset()
+        if not sta_if.isconnected():
+            print('PUKAO SAM : cekam povezivanje na WiFi')
+            do_connect()
+            # Ovde bi valjao reset ako se ne poveze za neko vreme
+
     print ('\nCekam ',pauza,'sekundi\n')
     time.sleep(pauza)
