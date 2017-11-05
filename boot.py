@@ -8,8 +8,8 @@ import machine
 gc.collect()
 
 # Ovde gasim pinove posto nakon reseta idu na .on()
-taster_pali = machine.Pin(2, machine.Pin.OUT)
-taster_odblokiraj = machine.Pin(15, machine.Pin.OUT)
+taster_pali = machine.Pin(15, machine.Pin.OUT)
+taster_odblokiraj = machine.Pin(2, machine.Pin.OUT)
 
 # Prilikom reseta ugasi grejanje_dugme
 taster_pali.off()

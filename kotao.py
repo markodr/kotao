@@ -33,8 +33,6 @@ Skalirane vrednosti za prikaz
 # Dodati jedan buzzer prilikom zbog reseta, staviti ga na pwm pin
 # PODESITI ONLINE STATUS
 
-# Custom Exception za senzore, bynk i Thingspeak
-
 def http_get(url):
     _, _, host, path = url.split('/', 3)
     addr = socket.getaddrinfo(host, 80)[0][-1]
@@ -52,6 +50,7 @@ def http_get(url):
         else:
             break
     s.close()
+
 def do_connect():
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
@@ -60,13 +59,17 @@ def do_connect():
         sta_if.connect('I9EBE', 'dTG7kKkAUJd4')
         while not sta_if.isconnected():
             pass
-    print('network config:', sta_if.ifconfig())
+    #print('network config:', sta_if.ifconfig())
 
 esp.osdebug(None)
 pauza = 60
+excepions = 0
 
 #wdt = machine.WDT(5000)
 #wdt.feed()
+# Definisanje pinova radi cak i bez ovoga... a ne bi trebalo
+#taster_pali = machine.Pin(2, machine.Pin.OUT)
+#taster_odblokiraj = machine.Pin(15, machine.Pin.OUT)
 
 # Zabrana AP
 ap_if = network.WLAN(network.AP_IF)
@@ -77,12 +80,8 @@ sta_if = network.WLAN(network.STA_IF)
 sta_if.active(True)
 print ('Stanica = ', sta_if.active() )
 
-# Definisanje modula
-#taster_pali = machine.Pin(2, machine.Pin.OUT)
-#taster_odblokiraj = machine.Pin(15, machine.Pin.OUT)
-
 # Sobni senzor
-d = dht.DHT11(machine.Pin(4))
+d = dht.DHT22(machine.Pin(4))
 
 # Senzor vode kotla
 dat = machine.Pin(13)
@@ -90,45 +89,64 @@ ds = ds18x20.DS18X20(onewire.OneWire(dat))
 roms = ds.scan()
 
 # Ne treba za ovo
-adc = machine.ADC(0)
+#adc = machine.ADC(0)
 
+# DA probam da uhvatim vreme za expetion
+vreme = 'x:x'
 
 # Povezivnje na web
-print('\nDostupne mreze\n')
-print(sta_if.scan())
+#print('\nDostupne mreze\n')
+#print(sta_if.scan())
 do_connect()
-
+print('\nResetovan uredjaj')
+# %0A new line
+# Salji na terminal da znam da se uredjaj resetovao...
+http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V5?value=POVEZAN_NAKON_RESETA%0A')
 
 while (True):
-    # PRVO proveri da li smo povezani,
+    # Sada mi se ispise koliko je puta puklo ali nigde ove poruke
     if not sta_if.isconnected():
+        print ('\nPukao WiFi konekcija proveri vreme na Blynk terminalu : ',vreme)
         do_connect()
-
-# Merenje Senzora
+        #ip_adresa=str(sta_if.ifconfig())
+        try:
+            http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V5?value=' + str(vreme) + '_Pukla_konekcija_' + str(excepions) + '_puta%0A')
+        except:
+            pass
+# ----- MERENJE SENZORA -----
     print('\nPocetak Merenja')
-    d.measure()
-    temperatura=d.temperature()
-    vlaznost=d.humidity()
-    print ('          Temperatura : ', temperatura)
-    print ('          Vlaznost    : ',vlaznost)
-    ds.convert_temp()
-    time.sleep(1)
-    for rom in roms:
-        kotao_temperatura= ds.read_temp(rom)
-        print( '          Temp. vode  : ', kotao_temperatura)
+# Ocitavanje DHT22 Senzora
+    try:
+        d.measure()
+        temperatura=d.temperature()
+        vlaznost=d.humidity()
+        print ('          Temperatura : ', temperatura)
+        print ('          Vlaznost    : ',vlaznost)
+    except:
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V5?value=' + str(vreme) + '_Pukao_DHT22%0A')
+# Ocitavanje DS1820 Senzora
+    try:
+        ds.convert_temp()
+        time.sleep(1)
+        for rom in roms:
+            kotao_temperatura= ds.read_temp(rom)
+            print( '          Temp. vode  : ', kotao_temperatura)
+    except:
+        http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V5?value=' + str(vreme) + '_Pukao_DS1820%0A')
     print ('Kraj Merenja\n')
 
+# ----- UPDATE APLIKACIJE -----
     try:
 # BLINK
     # Vlaznost prostorije - Update v1
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V1?value='+str(vlaznost))
-        print('Vlaznost : OK')
+        print('Vlaznost : Update OK')
     # Temperatura prostorije - Update v0
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V0?value='+str(temperatura))
-        print('Temperatura : OK')
+        print('Temperatura : Update OK')
     # Temperatura vode u kotlu - v4
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V4?value='+str(int(kotao_temperatura)))
-        print('Kotao : OK')
+        print('Kotao : Update OK')
     # Preuzmi RTC format podataka Update v10,v11 utime.localtime http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc
         rtc_format = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/rtc')
         RTC_raw = ure.search('\[(\d+)]', rtc_format).group(1)
@@ -145,10 +163,7 @@ while (True):
         else:
             vreme = '____' +  str(formatirano_vreme[3]) + ':' + str(formatirano_vreme[4]) + ':' + str(formatirano_vreme[5])
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V11?value=' + vreme )
-        print('RTC : OK')
-    # ThingSpeak https://community.blynk.cc/t/help-with-webhook-and-thingspeak/8242/3
-        http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1=' + str(temperatura) + '&field2=' + str(kotao_temperatura)  + '&field3=' + str(kotao_temperatura) + '&field4=' + str(vlaznost))
-        print('ThingSpeak : OK')
+        print('RTC : Update OK')
 
     # Grejanje Taster PALI - Dowload/Update v2,v13
         web_prekidac_pali = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V2')
@@ -159,7 +174,7 @@ while (True):
             taster_pali.on()
         else:
             taster_pali.off()
-        print('Prekidac Grejanje : OK')
+        print('Prekidac Grejanje : Update OK')
 
     # Grejanje Taster BLOKIRAJ Dowload/Update v3,v12
         web_prekidac_block = http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/get/V3')
@@ -170,17 +185,23 @@ while (True):
             taster_odblokiraj.on()
         else:
             taster_odblokiraj.off()
-        print('Prekidac Blokiraj : OK')
+        print('Prekidac Blokiraj : Update OK')
+
+    # ThingSpeak https://community.blynk.cc/t/help-with-webhook-and-thingspeak/8242/3
+        http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1=' + str(temperatura) + '&field2=' + str(kotao_temperatura)  + '&field3=' + str(kotao_temperatura) + '&field4=' + str(vlaznost))
+        print('ThingSpeak : Update OK')
+
 
     except:
+        # Valjalo bi resetovati ovde uredjaj posle n puta
+        excepions = excepions + 1
+        print('\nPukao je UPDATE tacno',excepions,'puta')
 
-        print('\nPukao je UPDATE,pokusavam ponovo')
-        time.sleep(10)
+        if excepions >5:
+            machine.reset()
+
+        time.sleep(pauza)
         continue
-        # if not sta_if.isconnected():
-        #     print('PUKAO SAM : Merim ponovo i povezujem se na WiFi')
-        #     do_connect()
-            # Ovde bi valjao reset ako se ne poveze za neko vreme
 
     print ('\nCekam ',pauza,'sekundi\n')
     time.sleep(pauza)
