@@ -4,10 +4,11 @@ import socket
 import network
 import ure
 import onewire, ds18x20
-from machine import WDT
+import machine
 import utime
 import network
 import esp
+from machine import Pin
 
 
 '''
@@ -32,6 +33,8 @@ Skalirane vrednosti za prikaz
 
 # Dodati jedan buzzer prilikom zbog reseta, staviti ga na pwm pin
 # PODESITI ONLINE STATUS
+# But I already correct all the pins ( GPIO0 pulled up, GPIO15 pulled down,
+# rst and ch_pc also pulled up) and the problem continues
 
 def http_get(url):
     _, _, host, path = url.split('/', 3)
@@ -59,7 +62,7 @@ excepions = 0
 #wdt.feed()
 
 # Definisano i u boot-u
-taster_pali = machine.Pin(15, machine.Pin.OUT)
+taster_pali = Pin(5, Pin.OUT, Pin.PULL_UP)
 
 
 # Sobni senzor
@@ -74,16 +77,13 @@ roms = ds.scan()
 vreme = 'x:x'
 
 # %0A new line
+# Ovde puca ako je losa konekcija
 
-print('\nResetovan uredjaj',vreme)
-# Salji na terminal da znam da se uredjaj resetovao u boot-u je povezan na WiFi
-http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V5?value=' + str(vreme) + '_Resetovan_Uredjaj%0A')
 
 while (True):
     # Uokliko je pukla konekcija ispisi vreme na terminalu ovo mozda ne treba
     # if not sta_if.isconnected():
     #     print ('\nPukao je WiFi/konekcija proveri vreme na Blynk terminalu : ',vreme)
-
     print('\nPocetak Merenja')
 
 #  ----- Ocitavanje DHT22 Senzora -----
@@ -142,22 +142,23 @@ while (True):
         http_get('http://blynk-cloud.com/15364b6f7e934f859ab8cc3803d2971b/update/V13?value='+str(prekidac_pali))
         #print( '\nRegex IZVADJENO    : ', smor)
         if (int(prekidac_pali) > 0):
-            #taster_pali.on()
+            taster_pali.on()
             pass
         else:
             taster_pali.off()
         print('Prekidac Grejanje : Update OK')
 
     # ThingSpeak https://community.blynk.cc/t/help-with-webhook-and-thingspeak/8242/3
-        # http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1=' + str(temperatura) + '&field2=' + str(kotao_temperatura)  + '&field3=' + str(kotao_temperatura) + '&field4=' + str(vlaznost))
-        # print('ThingSpeak : Update OK')
-
+        http_get( 'https://api.thingspeak.com/update?api_key=J1T84N77WN3S33B8&field1=' + str(temperatura) + '&field2=' + str(kotao_temperatura)  + '&field3=' + str(kotao_temperatura) + '&field4=' + str(vlaznost))
+        print('ThingSpeak : Update OK')
+        # Resetujemo brojac za reset posto je sve proslo kako treba
+        excepions=0
     except:
         # Valjalo bi resetovati ovde uredjaj posle n puta
         excepions = excepions + 1
         print('\nPukao je UPDATE tacno',excepions,'puta')
 
-        if excepions >=5:
+        if excepions >3:
             machine.reset()
 
         time.sleep(pauza)

@@ -11,7 +11,7 @@ COM PORT pristup:
 
 Flesovanje ESP8266:
   esptool.py --port /dev/tty.usbserial-A602EB8N erase_flash
-  esptool.py --port /dev/tty.usbserial-A602EB8N --baud 460800 write_flash --flash_size=detect 0 esp8266-20171024-v1.9.2-193-gf4059dcc.bin
+  esptool.py --port /dev/tty.usbserial-A602EB8N --baud 460800 write_flash --flash_size=detect 0 esp8266-20171101-v1.9.3.bin
 
 
 
@@ -44,9 +44,6 @@ ampy --port /dev/tty.usbserial-A602EB8N put kotao.py /main.py
 
 
 
-
-
-
 towel.blinkenlights.nl
 
 
@@ -56,3 +53,16 @@ request = Request('http://blynk-cloud.com/auth_token/update/pin?value=value')
 
 response_body = urlopen(request).read()
 print response_body
+
+
+Hey,
+GPIOs 4 and 5 are the only ones that are always high impedance.
+All others do have internal pull-ups or are even driven low/high during boot.
+
+GPIOs 3, 12, 13 and 14 pulled HIGH during boot.
+Their actual state does not influence the boot process.
+
+GPIOs 0, 1, 2 and 15 are pulled HIGH during boot and also driven LOW for short periods.
+The device will not boot if 0, 1 or 2 is driven LOW during start-up.
+
+GPIO 16 is driven HIGH during boot, don't short to GND.
