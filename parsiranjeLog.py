@@ -13,7 +13,7 @@ def stampaj_problem(lista,pozicije,unazad):
             print(lista[line-i])
         print('\n')
 
-file = open('PullDown.txt','r')
+file = open('precanBoot.txt','r')
 data = file.read().split('\n')
 # Vadim reset modula
 resetovano = vadi_markere(data,'rst cause')
@@ -24,10 +24,9 @@ print ('Resetvano : ',len(resetovano))
 pukla_konekcija = vadi_markere(data,'Pukao')
 print ('Pukla konekcija : ',len(resetovano))
 
-
+'''
 print('\n\n\nVADIM RESET PODATKE : \n\n\n')
 stampaj_problem(data,resetovano,10)
 '''
 print('\n\n\nVADIM PUKO SAM PODATKE : \n\n\n')
 stampaj_problem(data,pukla_konekcija,5)
-'''
